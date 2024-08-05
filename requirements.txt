@@ -1,0 +1,6 @@
+ibm-watson>=8.1.0
+flask
+python-dotenv
+SpeechRecognition
+pyaudio
+setuptools
