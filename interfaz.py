@@ -43,6 +43,7 @@ number_dict = {
 }
 
 def words_to_numbers(text):
+    text = text.lower()  # Convert text to lowercase
     words = text.split()
     result = []
     for word in words:
@@ -64,11 +65,7 @@ def send_message():
             session_id=session_id,
             input={
                 'message_type': 'text',
-                'text': user_input,
-                'options': {
-                    'return_context': True,
-                    'smart_formatting': True
-                }
+                'text': words_to_numbers(user_input)
             }
         ).get_result()
         display_response(response)
