@@ -29,6 +29,31 @@ speech_to_text.set_service_url(stt_url)
 
 recognizer = sr.Recognizer()
 
+# Diccionario para convertir palabras a números
+number_dict = {
+    "cero": "0", "uno": "1", "dos": "2", "tres": "3", "cuatro": "4",
+    "cinco": "5", "seis": "6", "siete": "7", "ocho": "8", "nueve": "9",
+    "diez": "10", "once": "11", "doce": "12", "trece": "13", "catorce": "14",
+    "quince": "15", "dieciséis": "16", "diecisiete": "17", "dieciocho": "18", "diecinueve": "19",
+    "veinte": "20", "treinta": "30", "cuarenta": "40", "cincuenta": "50",
+    "sesenta": "60", "setenta": "70", "ochenta": "80", "noventa": "90",
+    "cien": "100", "doscientos": "200", "trescientos": "300", "cuatrocientos": "400",
+    "quinientos": "500", "seiscientos": "600", "setecientos": "700", "ochocientos": "800", "novecientos": "900",
+    "mil": "1000"
+}
+
+def words_to_numbers(text):
+    words = text.split()
+    result = []
+    for word in words:
+        if word in number_dict:
+            result.append(number_dict[word])
+        elif len(word) == 1 and word.isalpha():
+            result.append(word)
+        else:
+            result.append(word)
+    return ''.join(result)
+
 def send_message():
     user_input = entry.get()
     if user_input.lower() in ['exit', 'quit', 'salir']:
@@ -61,6 +86,7 @@ def capture_voice():
             model='es-ES_BroadbandModel'
         ).get_result()
         user_input = stt_response['results'][0]['alternatives'][0]['transcript']
+        user_input = words_to_numbers(user_input)
         text_area.insert(tk.END, f"You: {user_input}\n")
         entry.delete(0, tk.END)
         entry.insert(0, user_input)
