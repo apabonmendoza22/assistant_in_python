@@ -76,12 +76,14 @@ def capture_voice():
         text_area.insert(tk.END, "You: (habla ahora)\n")
         audio = recognizer.listen(source)
     try:
-        audio_data = audio.get_wav_data()
+        audio_data = audio.get_wav_data(convert_rate=16000, convert_width=2)
+
         stt_response = speech_to_text.recognize(
             audio=audio_data,
             content_type='audio/wav',
             model='es-ES_BroadbandModel'
         ).get_result()
+
         user_input = stt_response['results'][0]['alternatives'][0]['transcript']
         user_input = words_to_numbers(user_input)
         text_area.insert(tk.END, f"You: {user_input}\n")

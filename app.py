@@ -1,63 +1,123 @@
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 import json
-from ibm_watson import AssistantV2
+import speech_recognition as sr
+from ibm_watson import AssistantV2, SpeechToTextV1
 from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
 import os
 import dotenv
+from ibm_cloud_sdk_core.api_exception import ApiException
+
+
 dotenv.load_dotenv()
 
+app = Flask(__name__)
+CORS(app)  # Habilitar CORS para todas las rutas
 
+# Configuración de IBM Watson Assistant
 assistant_apikey = os.getenv("ASSISTANT_APIKEY")
 assistant_url = os.getenv("ASSISTANT_URL")
 assistant_id = os.getenv("ASSISTANT_ID")
 
-# Configura tus credenciales
 authenticator = IAMAuthenticator(assistant_apikey)
 assistant = AssistantV2(
     version='2021-06-14',
     authenticator=authenticator
 )
-
-# Asegúrate de que esta URL es correcta para tu instancia
 assistant.set_service_url(assistant_url)
 
-try:
-    # Crear una nueva sesión
-    session_response = assistant.create_session(
-        assistant_id= assistant_id  # Verifica que este ID es correcto
-    ).get_result()
-    session_id = session_response['session_id']
-    print(f"Session ID: {session_id}")
+# Configuración de IBM Watson Speech to Text
+stt_apikey = os.getenv("STT_APIKEY")
+stt_url = os.getenv("STT_URL")
 
-    while True:
-        # Leer entrada del usuario
-        user_input = input("You: ")
-        if user_input.lower() in ['exit', 'quit', 'salir']:
-            break
+stt_authenticator = IAMAuthenticator(stt_apikey)
+speech_to_text = SpeechToTextV1(authenticator=stt_authenticator)
+speech_to_text.set_service_url(stt_url)
 
-        # Enviar la entrada del usuario al chatbot
+recognizer = sr.Recognizer()
+
+# Diccionario para convertir palabras a números
+number_dict = {
+    "cero": "0", "uno": "1", "dos": "2", "tres": "3", "cuatro": "4",
+    "cinco": "5", "seis": "6", "siete": "7", "ocho": "8", "nueve": "9",
+    "diez": "10", "once": "11", "doce": "12", "trece": "13", "catorce": "14",
+    "quince": "15", "dieciséis": "16", "diecisiete": "17", "dieciocho": "18", "diecinueve": "19",
+    "veinte": "20", "treinta": "30", "cuarenta": "40", "cincuenta": "50",
+    "sesenta": "60", "setenta": "70", "ochenta": "80", "noventa": "90",
+    "cien": "100", "doscientos": "200", "trescientos": "300", "cuatrocientos": "400",
+    "quinientos": "500", "seiscientos": "600", "setecientos": "700", "ochocientos": "800", "novecientos": "900",
+    "mil": "1000"
+}
+
+def words_to_numbers(text):
+    text = text.upper()
+    words = text.split()
+    result = []
+    for word in words:
+        if word in number_dict:
+            result.append(number_dict[word])
+        elif len(word) == 1 and word.isalpha():
+            result.append(word)
+        else:
+            result.append(word)
+    return ''.join(result)
+
+@app.route('/send_message', methods=['POST'])
+def send_message():
+    data = request.json
+    user_input = data.get('message')
+    try:
         response = assistant.message(
-            assistant_id=assistant_id,  # Verifica que este ID es correcto
+            assistant_id=assistant_id,
+            session_id=session_id,
+            input={
+                'message_type': 'text',
+                'text': words_to_numbers(user_input)
+            }
+        ).get_result()
+        return jsonify(response)
+    except ApiException as ex:
+        print(f"API Exception: {ex}")
+        return jsonify({'error': str(ex)}), 500
+    except Exception as e:
+        print(f"General Exception: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/capture_voice', methods=['POST'])
+def capture_voice():
+    audio_file = request.files['file']
+    audio_data = audio_file.read()
+    try:
+        stt_response = speech_to_text.recognize(
+            audio=audio_data,
+            content_type='audio/wav',
+            model='es-ES_BroadbandModel'
+        ).get_result()
+        user_input = stt_response['results'][0]['alternatives'][0]['transcript']
+        user_input = words_to_numbers(user_input)
+        response = assistant.message(
+            assistant_id=assistant_id,
             session_id=session_id,
             input={
                 'message_type': 'text',
                 'text': user_input
             }
         ).get_result()
+        return jsonify(response)
+    except ApiException as ex:
+        print(f"API Exception: {ex}")
+        return jsonify({'error': str(ex)}), 500
+    except Exception as e:
+        print(f"General Exception: {e}")
+        return jsonify({'error': str(e)}), 500
 
-        # Procesar la respuesta del chatbot
-        if 'generic' in response['output']:
-            for item in response['output']['generic']:
-                if item['response_type'] == 'text':
-                    print(f"Assistant: {item['text']}")
-                elif item['response_type'] == 'suggestion':
-                    print(item['title'])
-                    for suggestion in item['suggestions']:
-                        print(f"- {suggestion['label']}")
-
-    # Cerrar la sesión
-    assistant.delete_session(
-        assistant_id=assistant_id,  # Verifica que este ID es correcto
-        session_id=session_id
-    )
-except Exception as e:
-    print(f"Error: {e}")
+if __name__ == '__main__':
+    try:
+        session_response = assistant.create_session(
+            assistant_id=assistant_id
+        ).get_result()
+        session_id = session_response['session_id']
+        print(f"Session ID: {session_id}")
+        app.run(debug=True)
+    except Exception as e:
+        print(f"Error: {e}")

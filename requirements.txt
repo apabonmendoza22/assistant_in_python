@@ -4,3 +4,5 @@ python-dotenv
 SpeechRecognition
 pyaudio
 setuptools
+flask-cors
+pydub
