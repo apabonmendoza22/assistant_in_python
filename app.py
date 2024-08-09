@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 import json
 import speech_recognition as sr
@@ -13,6 +13,7 @@ dotenv.load_dotenv()
 
 app = Flask(__name__)
 CORS(app)  # Habilitar CORS para todas las rutas
+app.secret_key = os.urandom(24)  # Clave secreta para las sesiones
 
 # Configuración de IBM Watson Assistant
 assistant_apikey = os.getenv("ASSISTANT_APIKEY")
@@ -43,20 +44,18 @@ def clean_text(text):
     return text.strip()
 
 # Diccionario para convertir palabras a números
-
-
 def words_to_numbers(text):
     number_dict = {
-    "cero": "0", "uno": "1", "dos": "2", "tres": "3", "cuatro": "4",
-    "cinco": "5", "seis": "6", "siete": "7", "ocho": "8", "nueve": "9",
-    "diez": "10", "once": "11", "doce": "12", "trece": "13", "catorce": "14",
-    "quince": "15", "dieciséis": "16", "diecisiete": "17", "dieciocho": "18", "diecinueve": "19",
-    "veinte": "20", "treinta": "30", "cuarenta": "40", "cincuenta": "50",
-    "sesenta": "60", "setenta": "70", "ochenta": "80", "noventa": "90",
-    "cien": "100", "doscientos": "200", "trescientos": "300", "cuatrocientos": "400",
-    "quinientos": "500", "seiscientos": "600", "setecientos": "700", "ochocientos": "800", "novecientos": "900",
-    "mil": "1000"
-}
+        "cero": "0", "uno": "1", "dos": "2", "tres": "3", "cuatro": "4",
+        "cinco": "5", "seis": "6", "siete": "7", "ocho": "8", "nueve": "9",
+        "diez": "10", "once": "11", "doce": "12", "trece": "13", "catorce": "14",
+        "quince": "15", "dieciséis": "16", "diecisiete": "17", "dieciocho": "18", "diecinueve": "19",
+        "veinte": "20", "treinta": "30", "cuarenta": "40", "cincuenta": "50",
+        "sesenta": "60", "setenta": "70", "ochenta": "80", "noventa": "90",
+        "cien": "100", "doscientos": "200", "trescientos": "300", "cuatrocientos": "400",
+        "quinientos": "500", "seiscientos": "600", "setecientos": "700", "ochocientos": "800", "novecientos": "900",
+        "mil": "1000"
+    }
     words = text.split()
     result = []
     for word in words:
@@ -72,7 +71,17 @@ def words_to_numbers(text):
 def send_message():
     data = request.json
     user_input = data.get('message')
+    session_id = data.get('session_id')
+
     try:
+        if not session_id:
+            # Crear una nueva sesión si no hay session_id
+            session_response = assistant.create_session(
+                assistant_id=assistant_id
+            ).get_result()
+            session_id = session_response['session_id']
+            print(f"New session created: {session_id}")  # Depuración: Imprimir session_id
+
         response = assistant.message(
             assistant_id=assistant_id,
             session_id=session_id,
@@ -81,7 +90,7 @@ def send_message():
                 'text': words_to_numbers(user_input)
             }
         ).get_result()
-        return jsonify(response)
+        return jsonify({'response': response, 'session_id': session_id})
     except ApiException as ex:
         print(f"API Exception: {ex}")
         return jsonify({'error': str(ex)}), 500
@@ -93,6 +102,7 @@ def send_message():
 def capture_voice():
     audio_file = request.files['file']
     audio_data = audio_file.read()
+    session_id = request.form.get('session_id')
     try:
         stt_response = speech_to_text.recognize(
             audio=audio_data,
@@ -109,7 +119,7 @@ def capture_voice():
                 'text': user_input
             }
         ).get_result()
-        return jsonify(response)
+        return jsonify({'response': response, 'session_id': session_id})
     except ApiException as ex:
         print(f"API Exception: {ex}")
         return jsonify({'error': str(ex)}), 500
@@ -117,13 +127,6 @@ def capture_voice():
         print(f"General Exception: {e}")
         return jsonify({'error': str(e)}), 500
 
+
 if __name__ == '__main__':
-    try:
-        session_response = assistant.create_session(
-            assistant_id=assistant_id
-        ).get_result()
-        session_id = session_response['session_id']
-        print(f"Session ID: {session_id}")
-        app.run(host='0.0.0.0', port=5000, debug=True)
-    except Exception as e:
-        print(f"Error: {e}")
+    app.run(host='0.0.0.0', port=5000, debug=True)
