@@ -7,7 +7,7 @@ from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
 import os
 import dotenv
 from ibm_cloud_sdk_core.api_exception import ApiException
-
+import re
 
 dotenv.load_dotenv()
 
@@ -36,8 +36,17 @@ speech_to_text.set_service_url(stt_url)
 
 recognizer = sr.Recognizer()
 
+def clean_text(text):
+    # Eliminar espacios adicionales y caracteres especiales no deseados
+    text = re.sub(r'\s+', ' ', text)  # Reemplazar múltiples espacios por uno solo
+    text = re.sub(r'[^\w\s]', '', text)  # Eliminar caracteres especiales
+    return text.strip()
+
 # Diccionario para convertir palabras a números
-number_dict = {
+
+
+def words_to_numbers(text):
+    number_dict = {
     "cero": "0", "uno": "1", "dos": "2", "tres": "3", "cuatro": "4",
     "cinco": "5", "seis": "6", "siete": "7", "ocho": "8", "nueve": "9",
     "diez": "10", "once": "11", "doce": "12", "trece": "13", "catorce": "14",
@@ -48,9 +57,6 @@ number_dict = {
     "quinientos": "500", "seiscientos": "600", "setecientos": "700", "ochocientos": "800", "novecientos": "900",
     "mil": "1000"
 }
-
-def words_to_numbers(text):
-    text = text.upper()
     words = text.split()
     result = []
     for word in words:
@@ -60,7 +66,7 @@ def words_to_numbers(text):
             result.append(word)
         else:
             result.append(word)
-    return ''.join(result)
+    return ' '.join(result)
 
 @app.route('/send_message', methods=['POST'])
 def send_message():
@@ -118,6 +124,6 @@ if __name__ == '__main__':
         ).get_result()
         session_id = session_response['session_id']
         print(f"Session ID: {session_id}")
-        app.run(debug=True)
+        app.run(host='0.0.0.0', port=5000, debug=True)
     except Exception as e:
         print(f"Error: {e}")
