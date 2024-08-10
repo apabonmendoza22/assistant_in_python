@@ -88,7 +88,7 @@ def send_message():
             input={
                 'message_type': 'text',
                 'text': words_to_numbers(user_input),
-                'options': {'debug': True}
+                'options': {'debug': True,'context':True}
             }
         ).get_result()
         return jsonify({'response': response, 'session_id': session_id})
